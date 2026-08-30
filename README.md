@@ -11,6 +11,22 @@
 - 循环终止条件 ✅（`agent.py`）
 - 错误处理 ✅（`errors.py` + 各层兜底）
 
+## 环境准备
+
+推荐用专用 conda 环境（已内置 `PYTHONNOUSERSITE=1`，避免本机用户级 site-packages 污染）：
+
+```bash
+conda create -n minicoder -y --override-channels \
+  -c https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main \
+  -c https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/free \
+  python=3.12 requests pytest
+conda env config vars set PYTHONNOUSERSITE=1 -n minicoder   # 内置环境变量
+conda activate minicoder
+```
+
+> 说明：默认 `defaults` 频道指向 `repo.anaconda.com`，国内常不可达；用清华镜像可正常安装。
+> `anyio`/`sniffio` 若缺失（pytest 依赖），执行 `pip install anyio sniffio`。
+
 ## 快速开始
 
 ### 方式一：离线演示（无需 API key）
@@ -56,9 +72,8 @@ python -m minicoder.cli "demo/buggy_wordcount.py 的单词统计有 bug，请修
 ## 运行测试
 
 ```bash
-# Windows（conda 环境下，加 PYTHONNOUSERSITE=1 避免用户级 site-packages 污染）
-PYTHONNOUSERSITE=1 python -m pytest tests/ -v
-# 或直接双击运行 tests/run_tests.bat（已内置该变量）
+conda activate minicoder   # 已内置 PYTHONNOUSERSITE=1，直接跑即可
+python -m pytest tests/ -v
 ```
 
 29 项测试全部通过，覆盖：工具执行、超时杀进程、LLM 重试、主循环四场景、上下文裁剪协议合法性、CLI 端到端。

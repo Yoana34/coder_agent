@@ -38,4 +38,5 @@
   - `tests/run_tests.bat`：一键跑测试（内置 PYTHONNOUSERSITE，纯 ASCII 避免乱码）
   - demo 场景确认保持 bug 版（输出 9，可反复演示修复）
   - 验证：README 步骤可复现；**29 项测试通过**
+- [x] 环境根治：新建专用 conda 环境 `minicoder`（清华镜像绕过 defaults 不可达；内置 PYTHONNOUSERSITE=1；补装 anyio/sniffio），在此环境 29 项测试 + mock 演示全部通过
 - [ ] Step 8 真实 API 冒烟（可选，需 DEEPSEEK_API_KEY）
