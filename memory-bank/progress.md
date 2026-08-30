@@ -33,5 +33,9 @@
   - `mock_demo.py`：离线演示脚本（真实执行工具，真实修复 demo 文件）；`demo/` 场景（buggy_wordcount.py bug 修复：split(" ")→split()，9→11）
   - 端到端验证通过：`--mock` 4 轮收敛读→修→跑→总结 exit 0；demo 文件验证后已恢复 buggy 版
   - `tests/test_cli.py` 2 项通过；**全部 29 项测试通过**
-- [ ] Step 7 Demo 场景与 README
-- [ ] Step 8 真实 API 冒烟（可选）
+- [x] Step 7 Demo 场景与 README
+  - `README.md`：简介/快速开始(mock+真实API)/配置/架构/测试/亮点/项目结构/提交物
+  - `tests/run_tests.bat`：一键跑测试（内置 PYTHONNOUSERSITE，纯 ASCII 避免乱码）
+  - demo 场景确认保持 bug 版（输出 9，可反复演示修复）
+  - 验证：README 步骤可复现；**29 项测试通过**
+- [ ] Step 8 真实 API 冒烟（可选，需 DEEPSEEK_API_KEY）

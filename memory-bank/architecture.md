@@ -6,7 +6,7 @@
 
 ```
 project/
-├── minicoder/
+├── minicoder/            # 核心代码
 │   ├── __init__.py
 │   ├── cli.py            # argparse 入口 + Agent 接线 + 退出码
 │   ├── config.py         # 配置加载：.env 自研解析 + 环境变量 + CLI 覆盖
@@ -22,21 +22,21 @@ project/
 │       ├── read_file.py  # 带行号读取
 │       ├── write_file.py # 覆盖写入（自动建父目录）
 │       └── run_command.py# shell 执行 + 超时杀进程
-├── demo/                 # 演示场景：buggy_wordcount.py（bug 版，供 agent 修复）+ sample.txt
-├── tests/                # pytest（conftest 处理 sys.path）
-│   ├── conftest.py
+├── demo/                 # 演示场景：buggy_wordcount.py（bug 版）+ sample.txt
+├── tests/                # pytest（29 项）
+│   ├── conftest.py       # sys.path 处理
+│   ├── run_tests.bat     # 一键跑测试（内置 PYTHONNOUSERSITE）
 │   ├── test_tools.py
 │   ├── test_llm.py
 │   ├── test_agent.py
 │   ├── test_context.py
 │   └── test_cli.py
-├── demo/                 # 演示场景
-├── tests/                # pytest
 ├── README.md
 ├── requirements.txt
 ├── .env.example
-├── CLAUDE.md / AGENTS.md
-└── memory-bank/
+├── .gitignore
+├── CLAUDE.md
+└── memory-bank/          # 设计/技术栈/计划/进度/架构
 ```
 
 ## 核心数据流
