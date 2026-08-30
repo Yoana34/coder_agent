@@ -10,11 +10,11 @@ project/
 │   ├── __init__.py
 │   ├── cli.py            # argparse 入口（Step1: 骨架+配置校验）
 │   ├── config.py         # 配置加载：.env 自研解析 + 环境变量 + CLI 覆盖
-│   ├── agent.py          # 主循环 / 终止逻辑（待实现）
+│   ├── agent.py          # 主循环：消息组装→LLM→解析→工具执行→回传→终止
 │   ├── llm.py            # DeepSeek 客户端（requests 直连，重试/退避/结构解析）
 │   ├── mock_llm.py       # 离线确定性脚本化 mock（与 llm 同接口）
 │   ├── context.py        # 上下文管理（待实现）
-│   ├── errors.py         # 异常体系（已建）
+│   ├── errors.py         # 异常体系（含 AgentLimitExceeded）
 │   └── tools/
 │       ├── __init__.py   # 注册表 + execute_tool 分发器 + 统一截断
 │       ├── base.py       # Tool 基类 + OpenAI 函数 schema
@@ -24,7 +24,8 @@ project/
 ├── tests/                # pytest（conftest 处理 sys.path）
 │   ├── conftest.py
 │   ├── test_tools.py
-│   └── test_llm.py
+│   ├── test_llm.py
+│   └── test_agent.py
 ├── demo/                 # 演示场景
 ├── tests/                # pytest
 ├── README.md
