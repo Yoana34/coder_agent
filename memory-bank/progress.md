@@ -15,8 +15,10 @@
   - 完成 `tools/base.py`（Tool 基类 + schema）、`read_file.py`、`write_file.py`、`run_command.py`、`tools/__init__.py`（注册表 + execute_tool 分发器 + 统一截断）
   - `tests/test_tools.py` 12 项全部通过（含超时杀进程、坏参数兜底、截断）
   - **环境注意**：conda py312 会泄漏系统 Python 用户 site-packages（残缺 anyio/sniffio），测试/运行需加 `PYTHONNOUSERSITE=1`；后续 README 记录
-- [ ] Step 3 LLM 客户端
-- [ ] Step 3 LLM 客户端
+- [x] Step 3 LLM 客户端
+  - `llm.py`：requests 直连 /chat/completions 非流式；指数退避重试（429/5xx）；网络错误重试；认证等 4xx 快速失败；`_parse` 结构解析
+  - `mock_llm.py`：确定性脚本化 mock，与 DeepSeekClient 同接口（chat() -> ChatResult）
+  - `tests/test_llm.py` 7 项通过（含重试、快速失败、mock 序列、脚本耗尽）
 - [ ] Step 4 Agent 主循环
 - [ ] Step 5 上下文管理
 - [ ] Step 6 CLI 完善与离线演示

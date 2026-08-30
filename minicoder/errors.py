@@ -19,3 +19,7 @@ class ToolError(MiniCoderError):
 
 class AgentTerminated(MiniCoderError):
     """Agent 被中断（如 Ctrl+C），需干净退出。"""
+
+
+class AgentLimitExceeded(MiniCoderError):
+    """达到最大迭代轮数仍未完成。"""
