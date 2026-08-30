@@ -16,6 +16,7 @@ import json
 from typing import Any
 
 from .config import Config
+from .context import ContextManager
 from .errors import AgentLimitExceeded
 from .llm import ChatResult, ToolCall
 from .tools import execute_tool, tool_schemas
@@ -36,21 +37,25 @@ class Agent:
         self.cfg = cfg
         self.client = client
         self.echo = echo
-        self.messages: list[dict[str, Any]] = []
+        self.ctx: ContextManager | None = None
+
+    @property
+    def messages(self) -> list[dict[str, Any]]:
+        """当前对话历史（含 system + 初始 user），供测试/诊断读取。"""
+        return self.ctx.messages if self.ctx else []
 
     # ---------- 对外入口 ----------
 
     def run(self, task: str) -> str:
         """执行任务，返回最终回复。未完成（达上限）抛 AgentLimitExceeded。"""
-        self.messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": task},
-        ]
+        self.ctx = ContextManager(self.cfg, SYSTEM_PROMPT, task)
         self._say(f"任务：{task}\n")
 
         for iteration in range(1, self.cfg.max_iterations + 1):
             self._say(f"━━━ 第 {iteration}/{self.cfg.max_iterations} 轮 ━━━")
-            result = self.client.chat(self.messages, tools=tool_schemas())
+            # 轮次边界统一裁剪，保持历史不超上限且协议合法
+            self.ctx.trim()
+            result = self.client.chat(self.ctx.to_list(), tools=tool_schemas())
 
             if result.tool_calls:
                 self._handle_tool_calls(result)
@@ -69,7 +74,7 @@ class Agent:
 
     def _handle_tool_calls(self, result: ChatResult) -> None:
         # 1. 将完整 assistant 消息（含 tool_calls）追加到历史，保证 tool_call_id 可匹配
-        self.messages.append(result.message)
+        self.ctx.append(result.message)
         if result.content:
             self._say(result.content)
 
@@ -83,13 +88,13 @@ class Agent:
                     f"{tc.arguments_raw!r}。请修正后重新调用。"
                 )
                 self._say(f"  ⚠ {error_content}")
-                self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": error_content})
+                self.ctx.append({"role": "tool", "tool_call_id": tc.id, "content": error_content})
                 continue
 
             self._say(f"  → 调用 {tc.name} {json.dumps(args, ensure_ascii=False)[:160]}")
             output = execute_tool(self.cfg, tc.name, args)
             self._say(f"  ← {output[:300]}")
-            self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": output})
+            self.ctx.append({"role": "tool", "tool_call_id": tc.id, "content": output})
 
     @staticmethod
     def _parse_args(tc: ToolCall) -> dict[str, Any] | None:

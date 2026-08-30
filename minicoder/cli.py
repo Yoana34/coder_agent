@@ -1,12 +1,23 @@
-"""CLI 入口（argparse）。Step 1 提供骨架与配置校验；后续步骤接入 agent 主循环。"""
+"""CLI 入口（argparse）：接入 Agent 主循环，统一处理配置/中断/失败退出码。"""
 
 from __future__ import annotations
 
 import argparse
+import os
 
 from . import __version__
+from .agent import Agent
 from .config import Config, load_dotenv
-from .errors import ConfigError
+from .errors import AgentLimitExceeded, ConfigError, LLMError
+from .llm import DeepSeekClient
+from .mock_demo import MOCK_DEMO_SCRIPT, MOCK_DEMO_TASK
+from .mock_llm import MockLLM
+
+EXIT_OK = 0
+EXIT_FAILED = 1
+EXIT_CONFIG = 2
+EXIT_LLM = 3
+EXIT_INTERRUPT = 130
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -17,10 +28,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("task", nargs="?", default=None, help="编程任务描述（缺省则交互式输入）")
     p.add_argument("--model", default=None, help="模型名（覆盖 MINICODER_MODEL）")
     p.add_argument("--max-iterations", type=int, default=None, help="最大迭代轮数（默认 15）")
+    p.add_argument("--cwd", default=None, help="切换工作目录后再执行（默认当前目录）")
     p.add_argument(
         "--mock",
         action="store_true",
-        help="使用内置离线 mock LLM（无需 API key，用于演示与测试）",
+        help="使用内置离线 mock（无需 API key）：演示一次'读→修→跑→总结'完整闭环",
     )
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return p
@@ -37,6 +49,12 @@ def _banner(cfg: Config, mock: bool) -> str:
     )
 
 
+def _build_client(cfg: Config, mock: bool):
+    if mock:
+        return MockLLM(MOCK_DEMO_SCRIPT)
+    return DeepSeekClient(cfg)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -50,20 +68,33 @@ def main(argv: list[str] | None = None) -> int:
         cfg.validate(mock=args.mock)
     except ConfigError as e:
         print(f"[错误] {e}")
-        return 2
+        return EXIT_CONFIG
+
+    if args.cwd:
+        os.chdir(args.cwd)
 
     print(_banner(cfg, args.mock))
-    task = args.task
+    task = args.task or (MOCK_DEMO_TASK if args.mock else None)
     if not task:
         task = input("任务 > ").strip()
     if not task:
         print("[提示] 未输入任务，退出。")
-        return 0
+        return EXIT_OK
 
-    # TODO(Step 4/6): 创建 Agent 并运行主循环
-    print(f"[待实现] 已收到任务：{task}")
-    print("[待实现] 主循环将在后续步骤接入。")
-    return 0
+    client = _build_client(cfg, args.mock)
+    agent = Agent(cfg, client, echo=True)
+    try:
+        agent.run(task)
+    except AgentLimitExceeded as e:
+        print(f"\n[未完成] {e}")
+        return EXIT_FAILED
+    except LLMError as e:
+        print(f"\n[LLM 错误] {e}")
+        return EXIT_LLM
+    except KeyboardInterrupt:
+        print("\n[已中断]")
+        return EXIT_INTERRUPT
+    return EXIT_OK
 
 
 if __name__ == "__main__":

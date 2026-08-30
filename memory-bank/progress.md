@@ -24,8 +24,14 @@
   - `errors.py` 新增 `AgentLimitExceeded`
   - `tests/test_agent.py` 4 场景通过（完成/达上限/坏 JSON 恢复/Ctrl+C）
   - **全部 23 项测试通过** → 核心闭环（循环+三工具+终止+错误处理）能力达成
-- [ ] Step 5 上下文管理
-- [ ] Step 5 上下文管理
-- [ ] Step 6 CLI 完善与离线演示
+- [x] Step 5 上下文管理
+  - `context.py`：ContextManager（system+user 常驻 + 尾部滑动窗口）；**整轮裁剪**保证协议合法；`estimate_tokens` 粗估
+  - Agent 接入 ContextManager，轮次边界统一 trim；`agent.messages` 改为属性
+  - `tests/test_context.py` 4 项通过（含协议合法性断言、无孤儿 tool 消息）
+- [x] Step 6 CLI 完善与离线演示
+  - `cli.py` 重写：接入 Agent，退出码（0 成功/1 未完成/2 配置/3 LLM/130 中断），`--cwd`，无 key 提示
+  - `mock_demo.py`：离线演示脚本（真实执行工具，真实修复 demo 文件）；`demo/` 场景（buggy_wordcount.py bug 修复：split(" ")→split()，9→11）
+  - 端到端验证通过：`--mock` 4 轮收敛读→修→跑→总结 exit 0；demo 文件验证后已恢复 buggy 版
+  - `tests/test_cli.py` 2 项通过；**全部 29 项测试通过**
 - [ ] Step 7 Demo 场景与 README
 - [ ] Step 8 真实 API 冒烟（可选）
