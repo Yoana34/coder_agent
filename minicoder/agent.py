@@ -22,6 +22,8 @@ from .llm import ChatResult, ToolCall
 from .tools import execute_tool, tool_schemas
 
 SYSTEM_PROMPT = """你是一个编程智能体（coding agent），运行在用户的本地电脑上。
+你有一个隔离的工作区（workspace）：所有文件读写和命令执行都在工作区内进行，
+越界（如访问工作区以外的文件）会被拒绝。
 你可以通过工具完成编程任务：读取文件（read_file）、写入文件（write_file）、执行 shell 命令（run_command）。
 工作方式：
 1. 每轮要么调用一个或多个工具，要么直接给出最终回答。
@@ -33,10 +35,11 @@ SYSTEM_PROMPT = """你是一个编程智能体（coding agent），运行在用�
 
 
 class Agent:
-    def __init__(self, cfg: Config, client: Any, echo: bool = True):
+    def __init__(self, cfg: Config, client: Any, echo: bool = True, workspace: str | None = None):
         self.cfg = cfg
         self.client = client
         self.echo = echo
+        self.workspace = workspace  # 工作区根目录；None 表示不限制（测试用）
         self.ctx: ContextManager | None = None
 
     @property
@@ -92,7 +95,7 @@ class Agent:
                 continue
 
             self._say(f"  → 调用 {tc.name} {json.dumps(args, ensure_ascii=False)[:160]}")
-            output = execute_tool(self.cfg, tc.name, args)
+            output = execute_tool(self.cfg, tc.name, args, workspace=self.workspace)
             self._say(f"  ← {output[:300]}")
             self.ctx.append({"role": "tool", "tool_call_id": tc.id, "content": output})
 

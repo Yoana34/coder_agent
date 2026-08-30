@@ -12,6 +12,7 @@ from .errors import AgentLimitExceeded, ConfigError, LLMError
 from .llm import DeepSeekClient
 from .mock_demo import MOCK_DEMO_SCRIPT, MOCK_DEMO_TASK
 from .mock_llm import MockLLM
+from .seed_demo import seed_demo
 
 EXIT_OK = 0
 EXIT_FAILED = 1
@@ -30,21 +31,32 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--max-iterations", type=int, default=None, help="最大迭代轮数（默认 15）")
     p.add_argument("--cwd", default=None, help="切换工作目录后再执行（默认当前目录）")
     p.add_argument(
+        "--workspace",
+        default=None,
+        help="agent 工作区目录（默认 <当前目录>/workspace）。所有文件读写与命令都限制在此目录内",
+    )
+    p.add_argument(
+        "--seed-demo",
+        action="store_true",
+        help="把 demo 场景文件复制到工作区（真实 API 运行前可先执行一次）",
+    )
+    p.add_argument(
         "--mock",
         action="store_true",
-        help="使用内置离线 mock（无需 API key）：演示一次'读→修→跑→总结'完整闭环",
+        help="使用内置离线 mock（无需 API key）：自动 seed 工作区并演示一次'读→修→跑→总结'",
     )
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return p
 
 
-def _banner(cfg: Config, mock: bool) -> str:
+def _banner(cfg: Config, mock: bool, workspace: str) -> str:
     mode = "离线 mock（无 API 调用）" if mock else f"DeepSeek API ({cfg.model})"
     return (
         "\n"
         "==============================================\n"
         "  MiniCoder — 从零实现的编程智能体\n"
         f"  模式: {mode}\n"
+        f"  工作区: {workspace}\n"
         "==============================================\n"
     )
 
@@ -73,7 +85,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.cwd:
         os.chdir(args.cwd)
 
-    print(_banner(cfg, args.mock))
+    # 工作区：默认 <当前目录>/workspace，自动创建；mock 或 --seed-demo 时注入 demo 场景
+    workspace = os.path.abspath(args.workspace or "workspace")
+    os.makedirs(workspace, exist_ok=True)
+    if args.mock or args.seed_demo:
+        seed_demo(workspace)
+
+    print(_banner(cfg, args.mock, workspace))
     task = args.task or (MOCK_DEMO_TASK if args.mock else None)
     if not task:
         task = input("任务 > ").strip()
@@ -82,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_OK
 
     client = _build_client(cfg, args.mock)
-    agent = Agent(cfg, client, echo=True)
+    agent = Agent(cfg, client, echo=True, workspace=workspace)
     try:
         agent.run(task)
     except AgentLimitExceeded as e:

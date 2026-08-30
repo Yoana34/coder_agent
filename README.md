@@ -35,28 +35,41 @@ conda activate minicoder
 python -m minicoder.cli --mock
 ```
 
-启动后会自动跑一遍完整闭环：**读取 demo 中带 bug 的程序 → 定位问题 → 写入修复 → 运行验证 → 总结**。
+启动后会自动跑一遍完整闭环：**读取工作区中带 bug 的程序 → 定位问题 → 写入修复 → 运行验证 → 总结**。
 
 ### 方式二：真实 DeepSeek API
 
 1. 在 [DeepSeek 开放平台](https://platform.deepseek.com) 注册并创建 API key。
 2. 复制 `.env.example` 为 `.env`，填入 `DEEPSEEK_API_KEY`（或直接设置环境变量）。
-3. 运行：
+3. 用 `--seed-demo` 把演示场景复制进工作区，然后运行：
 
 ```bash
-python -m minicoder.cli "demo/buggy_wordcount.py 的单词统计有 bug，请修复并验证"
+python -m minicoder.cli --seed-demo "buggy_wordcount.py 的单词统计有 bug，请修复并验证"
 ```
 
 ### 常见参数
 
 | 参数 | 说明 |
 |---|---|
-| `--mock` | 离线确定性演示（不调用 API） |
+| `--mock` | 离线确定性演示（不调用 API，自动 seed 工作区） |
+| `--workspace <目录>` | agent 工作区（默认 `<当前目录>/workspace`），越界读写被拒 |
+| `--seed-demo` | 把 `demo/` 模板复制到工作区（已存在则不覆盖） |
 | `--model <名>` | 覆盖模型名（默认 `deepseek-chat`） |
 | `--max-iterations <n>` | 最大迭代轮数（默认 15） |
 | `--cwd <目录>` | 先切换工作目录再执行 |
 
 退出码：`0` 成功 / `1` 未完成（达上限）/ `2` 配置错误 / `3` LLM 错误 / `130` 用户中断。
+
+## 工作区沙箱（安全设计）
+
+agent 默认在 `<cwd>/workspace/` 内读写文件与执行命令：
+
+- `read_file` / `write_file` 的 `path`、`run_command` 的 `cwd` 必须解析到工作区内；
+- 越界访问（`../`、绝对路径、其他盘符）返回 `路径越界` 错误字符串给模型，模型可自行修正；
+- `run_command` 默认在 `workspace/` 下执行，无法用命令逃逸；
+- `demo/` 只作为任务模板源，agent 永远不会修改它；`workspace/` 已 gitignore，不入库。
+
+这样即使模型犯错，也无法改动 minicoder 自身代码或你的其他文件。
 
 ## 配置（环境变量 / `.env`）
 
@@ -76,7 +89,7 @@ conda activate minicoder   # 已内置 PYTHONNOUSERSITE=1，直接跑即可
 python -m pytest tests/ -v
 ```
 
-29 项测试全部通过，覆盖：工具执行、超时杀进程、LLM 重试、主循环四场景、上下文裁剪协议合法性、CLI 端到端。
+37 项测试全部通过，覆盖：工具执行、超时杀进程、LLM 重试、主循环四场景、上下文裁剪协议合法性、工作区沙箱（越界拦截）、CLI 端到端。
 
 ## 架构
 
@@ -105,6 +118,7 @@ python -m pytest tests/ -v
 
 - **协议级理解**：不用 `openai` SDK，用 `requests` 直连 `/chat/completions`，完整实现 `tools` / `tool_calls` / `tool` 角色回传协议。
 - **工具失败不崩溃**：错误作为字符串回传模型，模型可自我修正（坏 JSON 参数同样回传错误重试）。
+- **工作区沙箱**：agent 只能在工作区内读写/执行命令，越界路径被拦截——自研路径解析与越界校验，保护 minicoder 自身代码不被误改。
 - **上下文裁剪保证协议合法**：成对删除整轮 `assistant(tool_calls) + tool`，杜绝孤儿 tool 消息。
 - **确定性测试**：mock LLM 使主循环可在离线可复现地验证（完成/达上限/坏 JSON 恢复/中断）。
 
@@ -112,9 +126,10 @@ python -m pytest tests/ -v
 
 ```
 minicoder/          # 核心代码
-tools/              # 工具注册表 + read_file / write_file / run_command
-tests/              # 29 项 pytest
-demo/               # 演示场景（带 bug 的 wordcount 程序 + 样例文本）
+tools/              # 工具注册表 + 沙箱 + read_file / write_file / run_command
+workspace/          # agent 工作区（沙箱，gitignore，运行自动创建）
+tests/              # 37 项 pytest
+demo/               # 演示场景模板（带 bug 的 wordcount 程序 + 样例文本）
 memory-bank/        # 设计文档 / 技术栈 / 实施计划 / 进度 / 架构
 ```
 

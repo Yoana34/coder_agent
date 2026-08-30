@@ -12,6 +12,9 @@ build/
 .env
 *.env.local
 
+# agent 工作区（agent 读写文件的沙箱目录，不入库）
+workspace/
+
 # 编辑器/系统
 .vscode/
 .idea/

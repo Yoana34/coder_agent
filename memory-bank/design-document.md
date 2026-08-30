@@ -57,6 +57,7 @@ errors.py       自定义异常（LLMError / ToolError / AgentTerminated）
 - **同步阻塞式设计**：LLM 调用和子进程执行都是阻塞的，同步代码最简单可靠，核心闭环不需要并发。
 - **工具为声明式注册**：每个工具是一个类，携带 name/description/parameters(JSON Schema)，序列化为 OpenAI `tools` 参数；新增工具只需加一个文件。
 - **上下文默认不裁剪整轮，而是截断**：工具输出超长时截断（默认 8000 字符），消息列表超上限（默认 30 条）时丢弃最老的工具结果消息。v2 再做摘要。
+- **工作区沙箱（workspace）**：agent 默认在 `<cwd>/workspace/` 内读写与执行命令，防止误改 minicoder 自身代码或用户其他文件。`read_file` / `write_file` 的 `path` 与 `run_command` 的 `cwd` 都必须解析到工作区内，越界返回 `[工具错误] 路径越界`。demo 场景以模板形式存于 `demo/`，运行前由 `seed_demo()` 复制进工作区。
 
 ## 4. 工具定义
 
@@ -101,9 +102,11 @@ messages.append({"role": "tool", "tool_call_id": <id>, "content": <工具执行�
 | 模型 | `MINICODER_MODEL` | `deepseek-chat` |
 | Base URL | `MINICODER_BASE_URL` | `https://api.deepseek.com` |
 | 最大轮数 | `MINICODER_MAX_ITERATIONS` | `15` |
-| CLI 覆盖 | `--max-iterations` / `--model` / `--mock` | — |
+| CLI 覆盖 | `--max-iterations` / `--model` / `--mock` / `--workspace` / `--seed-demo` | — |
 
 - `--mock`：使用内置 mock LLM（离线、确定性），用于无 key 时的演示与测试。
+- `--workspace <目录>`：agent 工作区（默认 `<cwd>/workspace`），越界读写被拒。
+- `--seed-demo`：把 `demo/` 模板复制进工作区（`--mock` 自动执行）。
 - `.env.example` 提供配置模板；本地加载 `.env`（若存在）。
 
 ## 8. 状态与数据模型
@@ -123,6 +126,7 @@ messages.append({"role": "tool", "tool_call_id": <id>, "content": <工具执行�
 | 命令输出超长 | 截断到上限，附 `[truncated]` 标记 |
 | 工具参数 JSON 解析失败 | 回传错误给模型重试 |
 | 无 key 且无 mock | 报错退出，不静默 |
+| 工具路径越出工作区（`../`、绝对路径、其他盘符） | 沙箱拦截，返回 `路径越界` 错误字符串给模型 |
 
 ## 10. 验收标准（acceptance criteria）
 

@@ -1,4 +1,6 @@
-"""Step 2 验收：工具框架与三个工具的单元测试。"""
+"""Step 2 验收：工具框架与三个工具的单元测试（含工作区沙箱）。"""
+
+import os
 
 import pytest
 
@@ -107,3 +109,78 @@ def test_tool_run_raises_is_caught(cfg, tmp_path):
     # read_file 传不可序列化参数路径（None）应被分发器兜底成错误字符串
     out = execute_tool(cfg, "read_file", {"path": None})
     assert "[工具错误]" in out or "[read_file 错误]" in out
+
+
+# ---------- 工作区沙箱（workspace） ----------
+
+def test_sandbox_write_inside_workspace(cfg, tmp_path):
+    ws = tmp_path / "ws"
+    out = execute_tool(cfg, "write_file", {"path": "out.py", "content": "x = 1\n"}, workspace=str(ws))
+    assert "已写入" in out
+    assert (ws / "out.py").read_text(encoding="utf-8") == "x = 1\n"
+    # 原目录不应被写入
+    assert not (tmp_path / "out.py").exists()
+
+
+def test_sandbox_read_absolute_path_inside_ok(cfg, tmp_path):
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (ws / "a.txt").write_text("hello\n", encoding="utf-8")
+    out = execute_tool(cfg, "read_file", {"path": "a.txt"}, workspace=str(ws))
+    assert "hello" in out
+
+
+def test_sandbox_blocks_relative_escape(cfg, tmp_path):
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    out = execute_tool(cfg, "read_file", {"path": "../secret.txt"}, workspace=str(ws))
+    assert "越界" in out
+
+
+def test_sandbox_blocks_absolute_escape(cfg, tmp_path):
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    outside = tmp_path / "secret.txt"
+    outside.write_text("top secret\n", encoding="utf-8")
+    out = execute_tool(cfg, "read_file", {"path": str(outside)}, workspace=str(ws))
+    assert "越界" in out
+
+
+def test_sandbox_blocks_write_escape(cfg, tmp_path):
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    out = execute_tool(
+        cfg, "write_file", {"path": "../evil.py", "content": "x = 1\n"}, workspace=str(ws)
+    )
+    assert "越界" in out
+    assert not (tmp_path / "evil.py").exists()
+
+
+def test_sandbox_run_command_defaults_to_workspace(cfg, tmp_path):
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    out = execute_tool(
+        cfg,
+        "run_command",
+        {"command": 'python -c "import os; print(os.getcwd())"', "timeout": 15},
+        workspace=str(ws),
+    )
+    assert os.path.abspath(str(ws)) in out
+
+
+def test_sandbox_run_command_cwd_escape_blocked(cfg, tmp_path):
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    out = execute_tool(
+        cfg,
+        "run_command",
+        {"command": "echo hi", "cwd": str(tmp_path), "timeout": 15},
+        workspace=str(ws),
+    )
+    assert "越界" in out
+
+
+def test_no_workspace_means_no_restriction(cfg, tmp_path):
+    # workspace=None（测试/默认）时不沙箱，行为与之前一致
+    out = execute_tool(cfg, "read_file", {"path": "demo/does_not_matter"}, workspace=None)
+    assert isinstance(out, str)

@@ -45,3 +45,13 @@
   - demo 文件已恢复 bug 版；`.env` 为 gitignored，不入库
   - 小观察：模型总结文字有个别表述瑕疵（说"结果变多"，实际是变少），但修复与验证正确——录视频时可用
 - **核心闭环全部完成（Step 1–8），29 项测试通过，真实 API 可用**
+- [x] 工作区沙箱（防 agent 误改自身代码）
+  - `tools/__init__.py`：`execute_tool` 新增 `workspace` 参数；`read_file`/`write_file` 的 `path` 与 `run_command` 的 `cwd` 必须解析到工作区内，越界返回 `路径越界`；`run_command` 默认 cwd=工作区
+  - `agent.py`：新增 `workspace` 参数并透传给工具层；SYSTEM_PROMPT 声明工作区隔离
+  - `seed_demo.py`：`demo/` 模板复制进工作区（已存在不覆盖）；`mock_demo.py` 改用工作区相对路径
+  - `cli.py`：`--workspace`（默认 `<cwd>/workspace`，自动建目录）+ `--seed-demo`；`--mock` 自动 seed
+  - `.gitignore` 忽略 `workspace/`
+  - 测试：新增 8 项沙箱测试（相对/绝对越界拦截、写文件限制在工作区内、默认 cwd、无沙箱兼容），CLI mock 测试改为断言工作区文件
+  - 修复 `test_missing_key_exit_config`：`delenv` 后 `.env` 会重新注入 key 导致走真实 API，改为 `setenv("DEEPSEEK_API_KEY","")`
+  - 恢复 `demo/` 模板：此前真实 API 演示曾把 `buggy_wordcount.py` 写成修复版、`sample.txt` 被改造成不演示 bug 的内容——沙箱功能正是要杜绝这类问题
+  - 验证：**37 项测试通过**；`--mock` 端到端 4 轮收敛，`单词数: 11`（9→11 演示正常），文件仅在 `workspace/` 内被修复
