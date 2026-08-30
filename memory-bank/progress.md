@@ -39,4 +39,9 @@
   - demo 场景确认保持 bug 版（输出 9，可反复演示修复）
   - 验证：README 步骤可复现；**29 项测试通过**
 - [x] 环境根治：新建专用 conda 环境 `minicoder`（清华镜像绕过 defaults 不可达；内置 PYTHONNOUSERSITE=1；补装 anyio/sniffio），在此环境 29 项测试 + mock 演示全部通过
-- [ ] Step 8 真实 API 冒烟（可选，需 DEEPSEEK_API_KEY）
+- [x] Step 8 真实 API 冒烟 ✅
+  - 连通性测试通过（deepseek-chat 正常响应）
+  - 真实完整演示通过：agent 读文件→定位 bug→write_file 修复（split()）→run_command 验证（11）→详细总结，4 轮收敛 exit 0
+  - demo 文件已恢复 bug 版；`.env` 为 gitignored，不入库
+  - 小观察：模型总结文字有个别表述瑕疵（说"结果变多"，实际是变少），但修复与验证正确——录视频时可用
+- **核心闭环全部完成（Step 1–8），29 项测试通过，真实 API 可用**
