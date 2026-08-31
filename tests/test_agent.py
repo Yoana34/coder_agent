@@ -85,6 +85,34 @@ def test_bad_json_args_recovery(cfg, tmp_path):
     assert target.read_text(encoding="utf-8") == "ok"
 
 
+# ---------- 场景 E：多轮对话 —— 上下文跨轮保留 ----------
+
+def test_multi_turn_preserves_context(cfg):
+    """同一 agent 连续 run 两次：追问追加进已有历史，之前的工作结果仍可见。"""
+    script = [
+        {"type": "final", "content": "第一轮完成。"},
+        {"type": "final", "content": "第二轮完成，已基于之前的上下文作答。"},
+    ]
+    agent = make_agent(cfg, MockLLM(script))
+
+    final1 = agent.run("第一个任务")
+    assert final1 == "第一轮完成。"
+    # 第一轮的最终回复已写入历史
+    assert agent.messages[1] == {"role": "user", "content": "第一个任务"}
+    assert any(m["role"] == "assistant" and m["content"] == "第一轮完成。" for m in agent.messages)
+
+    final2 = agent.run("继续：把结果改成大写")
+    assert final2 == "第二轮完成，已基于之前的上下文作答。"
+    # 追问在尾部，初始任务仍常驻，历史被完整保留（无重置）
+    roles = [m["role"] for m in agent.messages]
+    assert roles[1] == "user" and agent.messages[1]["content"] == "第一个任务"
+    assert roles[-1] == "assistant"
+    assert agent.messages[-2] == {"role": "user", "content": "继续：把结果改成大写"}
+    # 两个任务都在历史里
+    user_contents = [m["content"] for m in agent.messages if m["role"] == "user"]
+    assert "第一个任务" in user_contents and "继续：把结果改成大写" in user_contents
+
+
 # ---------- 场景 D：Ctrl+C 干净中断（异常上抛，由 CLI 处理） ----------
 
 class KillLLM:

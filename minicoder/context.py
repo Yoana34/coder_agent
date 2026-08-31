@@ -32,6 +32,10 @@ class ContextManager:
         """追加一条消息（不在此处裁剪；裁剪在轮次边界统一调用 trim）。"""
         self.messages.append(message)
 
+    def add_user_message(self, text: str) -> None:
+        """多轮对话：追加一条用户追问。初始任务常驻头部，后续追问进入滑动窗口。"""
+        self.messages.append({"role": "user", "content": text})
+
     def to_list(self) -> list[dict[str, Any]]:
         return self.messages
 

@@ -83,3 +83,38 @@ def test_estimate_tokens(cfg):
     ctx.append(a)
     ctx.append(t)
     assert ctx.estimate_tokens() > 0
+
+
+# ---------- 多轮对话 ----------
+
+def test_add_user_message_multi_turn(cfg):
+    """追问追加在尾部、初始任务常驻，历史协议保持合法。"""
+    ctx = ContextManager(cfg, "SYSTEM", "第一个任务")
+    for i in range(2):
+        a, t = _tool_round(f"call_{i}")
+        ctx.append(a)
+        ctx.append(t)
+    ctx.add_user_message("继续：把输出改成大写")
+    assert ctx.messages[0]["role"] == "system"
+    assert ctx.messages[1] == {"role": "user", "content": "第一个任务"}
+    assert ctx.messages[-1] == {"role": "user", "content": "继续：把输出改成大写"}
+    _assert_protocol_valid(ctx.messages)
+
+
+def test_trim_multi_turn_keeps_task_and_protocol(cfg):
+    """多轮追问超上限时：整轮工具轮次先被裁剪，初始任务与最近追问保留，协议合法。"""
+    ctx = ContextManager(cfg, "SYSTEM", "第一个任务")
+    for i in range(20):
+        ctx.add_user_message(f"追问 {i}")
+        a, t = _tool_round(f"call_{i}")
+        ctx.append(a)
+        ctx.append(t)
+    ctx.trim()
+    assert len(ctx.messages) <= cfg.max_messages
+    # 初始任务常驻
+    assert ctx.messages[0]["role"] == "system"
+    assert ctx.messages[1]["content"] == "第一个任务"
+    # 最近的追问保留（每轮最后一条是 tool 消息，故检查尾部用户内容）
+    user_contents = [m["content"] for m in ctx.messages if m["role"] == "user"]
+    assert "追问 19" in user_contents
+    _assert_protocol_valid(ctx.messages)

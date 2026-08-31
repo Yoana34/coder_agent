@@ -25,6 +25,8 @@ SYSTEM_PROMPT = """你是一个编程智能体（coding agent），运行在用�
 你有一个隔离的工作区（workspace）：所有文件读写和命令执行都在工作区内进行，
 越界（如访问工作区以外的文件）会被拒绝。
 你可以通过工具完成编程任务：读取文件（read_file）、写入文件（write_file）、执行 shell 命令（run_command）。
+这是多轮对话：完成一个任务后，用户可能继续提问或要求修改。
+你要记住之前完成的工作，基于已有的上下文继续处理，不必重新探查已了解的信息。
 工作方式：
 1. 每轮要么调用一个或多个工具，要么直接给出最终回答。
 2. 需要信息时先用工具探查（read_file / run_command），再决定下一步。
@@ -50,8 +52,15 @@ class Agent:
     # ---------- 对外入口 ----------
 
     def run(self, task: str) -> str:
-        """执行任务，返回最终回复。未完成（达上限）抛 AgentLimitExceeded。"""
-        self.ctx = ContextManager(self.cfg, SYSTEM_PROMPT, task)
+        """执行一轮任务，返回最终回复。可多次调用形成多轮对话：上下文跨轮保留。
+
+        未完成（达上限）抛 AgentLimitExceeded。
+        """
+        # 多轮对话：首次创建上下文，之后把用户追问追加进已有历史
+        if self.ctx is None:
+            self.ctx = ContextManager(self.cfg, SYSTEM_PROMPT, task)
+        else:
+            self.ctx.add_user_message(task)
         self._say(f"任务：{task}\n")
 
         for iteration in range(1, self.cfg.max_iterations + 1):
@@ -64,8 +73,9 @@ class Agent:
                 self._handle_tool_calls(result)
                 continue
 
-            # 无工具调用 → 最终回复
+            # 无工具调用 → 最终回复；写入历史，供后续追问参考
             final = (result.content or "").strip()
+            self.ctx.append(result.message)
             self._say(f"\n✅ 完成\n{final}")
             return final
 

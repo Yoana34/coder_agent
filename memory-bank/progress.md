@@ -55,3 +55,11 @@
   - 修复 `test_missing_key_exit_config`：`delenv` 后 `.env` 会重新注入 key 导致走真实 API，改为 `setenv("DEEPSEEK_API_KEY","")`
   - 恢复 `demo/` 模板：此前真实 API 演示曾把 `buggy_wordcount.py` 写成修复版、`sample.txt` 被改造成不演示 bug 的内容——沙箱功能正是要杜绝这类问题
   - 验证：**37 项测试通过**；`--mock` 端到端 4 轮收敛，`单词数: 11`（9→11 演示正常），文件仅在 `workspace/` 内被修复
+- [x] 多轮对话（上下文管理的对外体现）
+  - 背景：此前 CLI 一次性任务，跑完即退出，上下文管理只体现在单任务内部工具轮次，无法让用户持续追问
+  - `context.py`：新增 `add_user_message()` 追加用户追问（初始任务常驻、追问进入滑动窗口）
+  - `agent.py`：`run()` 首次创建 ContextManager、之后复用同一份历史；每轮最终 assistant 回复也写入历史供后续参考；SYSTEM_PROMPT 声明多轮对话
+  - `cli.py`：新增 `_repl()` 多轮主循环（首个任务来自参数/输入，随后"继续对话"；空行/退出词结束；Ctrl+C 干净中断；mock 演示一轮后自动退出）
+  - 测试：新增 context 2 项（追问追加、多轮裁剪保协议）、agent 1 项（跨轮上下文保留）、cli 4 项（REPL 多轮/空任务退出/退出词/mock 单轮）
+  - 验证：**44 项测试通过**；真实 API 两轮演示——第一轮修 wordcount bug（9→11），第二轮"改成从标准输入读取"，agent 记住第一轮工作、复用 count_words 函数、自行验证输出 9 词，两轮收敛 exit 0
+  - 注意：`conda run` 会吞掉 stdin，测试管道输入需直接调用环境 python（`PYTHONNOUSERSITE=1`）

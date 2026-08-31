@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+from typing import Callable
 
 from . import __version__
 from .agent import Agent
@@ -13,6 +14,9 @@ from .llm import DeepSeekClient
 from .mock_demo import MOCK_DEMO_SCRIPT, MOCK_DEMO_TASK
 from .mock_llm import MockLLM
 from .seed_demo import seed_demo
+
+# REPL 中退出对话的关键词
+_EXIT_WORDS = {"退出", "exit", "quit", "/exit", "q"}
 
 EXIT_OK = 0
 EXIT_FAILED = 1
@@ -67,6 +71,56 @@ def _build_client(cfg: Config, mock: bool):
     return DeepSeekClient(cfg)
 
 
+def _repl(
+    cfg: Config,
+    agent: Agent,
+    *,
+    mock: bool,
+    initial_task: str | None = None,
+    get_input: Callable[[str], str] = input,
+) -> int:
+    """多轮对话主循环。返回退出码。
+
+    - 首个任务来自 CLI 参数 / --mock 演示；随后进入"继续对话"循环。
+    - 空行或退出词结束；Ctrl+C 干净中断。
+    - mock 模式演示一次后自动退出（脚本用尽无后续）。
+    """
+    task = initial_task
+    rc = EXIT_OK
+    while True:
+        if task is None:
+            task = get_input("任务 > ").strip()
+            if not task:
+                print("[提示] 未输入任务，退出。")
+                return rc
+        try:
+            agent.run(task)
+            rc = EXIT_OK
+        except AgentLimitExceeded as e:
+            print(f"\n[未完成] {e}")
+            rc = EXIT_FAILED
+        except LLMError as e:
+            print(f"\n[LLM 错误] {e}")
+            rc = EXIT_LLM
+        except KeyboardInterrupt:
+            print("\n[已中断]")
+            return EXIT_INTERRUPT
+
+        if mock:
+            break  # 离线演示只跑一轮
+        try:
+            follow = get_input(
+                "\n继续对话：输入下一个任务；空行或 退出/exit 结束。\n任务 > "
+            ).strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+        if not follow or follow.lower() in _EXIT_WORDS:
+            break
+        task = follow
+    return rc
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -92,27 +146,11 @@ def main(argv: list[str] | None = None) -> int:
         seed_demo(workspace)
 
     print(_banner(cfg, args.mock, workspace))
-    task = args.task or (MOCK_DEMO_TASK if args.mock else None)
-    if not task:
-        task = input("任务 > ").strip()
-    if not task:
-        print("[提示] 未输入任务，退出。")
-        return EXIT_OK
 
     client = _build_client(cfg, args.mock)
     agent = Agent(cfg, client, echo=True, workspace=workspace)
-    try:
-        agent.run(task)
-    except AgentLimitExceeded as e:
-        print(f"\n[未完成] {e}")
-        return EXIT_FAILED
-    except LLMError as e:
-        print(f"\n[LLM 错误] {e}")
-        return EXIT_LLM
-    except KeyboardInterrupt:
-        print("\n[已中断]")
-        return EXIT_INTERRUPT
-    return EXIT_OK
+    initial_task = args.task or (MOCK_DEMO_TASK if args.mock else None)
+    return _repl(cfg, agent, mock=args.mock, initial_task=initial_task)
 
 
 if __name__ == "__main__":
