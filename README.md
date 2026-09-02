@@ -1,6 +1,6 @@
 # MiniCoder — 从零实现的编程智能体
 
-> 软件工程专业推免（南大）考核项目。个人独立实现一个简化版 Claude Code / Codex：
+> 个人独立实现一个简化版 Claude Code / Codex：
 > 通过与 LLM 对话，自主读写文件、执行命令，完成编程任务。
 
 **核心要求达成：核心逻辑全部自研，零 agent 框架 / SDK 依赖。**
@@ -13,19 +13,14 @@
 
 ## 环境准备
 
-推荐用专用 conda 环境（已内置 `PYTHONNOUSERSITE=1`，避免本机用户级 site-packages 污染）：
+需要 **Python 3.10+**，依赖极少：
 
 ```bash
-conda create -n minicoder -y --override-channels \
-  -c https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main \
-  -c https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/free \
-  python=3.12 requests pytest
-conda env config vars set PYTHONNOUSERSITE=1 -n minicoder   # 内置环境变量
-conda activate minicoder
+pip install -r requirements.txt
 ```
 
-> 说明：默认 `defaults` 频道指向 `repo.anaconda.com`，国内常不可达；用清华镜像可正常安装。
-> `anyio`/`sniffio` 若缺失（pytest 依赖），执行 `pip install anyio sniffio`。
+> `requests` 用于调用 DeepSeek API，`pytest` 用于跑测试（见 requirements.txt）。
+> 没有 API key 也能先用 `--mock` 离线体验，无需任何配置。
 
 ## 快速开始
 
@@ -44,7 +39,7 @@ python -m minicoder.cli --mock
 3. 用 `--seed-demo` 把演示场景复制进工作区，然后运行：
 
 ```bash
-python -m minicoder.cli --seed-demo "buggy_wordcount.py 的单词统计有 bug，请修复并验证"
+python -m minicoder.cli
 ```
 
 ### 常见参数
@@ -102,7 +97,6 @@ agent 完成一个任务后**不会退出**，终端继续提示"继续对话"�
 ## 运行测试
 
 ```bash
-conda activate minicoder   # 已内置 PYTHONNOUSERSITE=1，直接跑即可
 python -m pytest tests/ -v
 ```
 
@@ -124,14 +118,14 @@ python -m pytest tests/ -v
 | 模块 | 职责 |
 |---|---|
 | `cli.py` | 参数解析、配置校验、退出码、中断处理 |
-| `config.py` | 环境变量 + `.env`（自研解析器）+ CLI 覆盖 |
+| `config.py` | 环境变量 + `.env`+ CLI 覆盖 |
 | `agent.py` | 主循环：消息组装 → LLM → 解析 → 工具执行 → 回传 → 终止 |
 | `llm.py` | requests 直连 API，指数退避重试，响应结构解析 |
 | `context.py` | 历史滑动窗口：整轮裁剪保持协议合法，token 粗估 |
 | `tools/` | 声明式工具注册表 + 三个本地工具（读/写/命令） |
 | `mock_llm.py` / `mock_demo.py` | 离线确定性演示（真实执行工具） |
 
-## 设计要点（考核亮点）
+## 设计要点
 
 - **协议级理解**：不用 `openai` SDK，用 `requests` 直连 `/chat/completions`，完整实现 `tools` / `tool_calls` / `tool` 角色回传协议。
 - **工具失败不崩溃**：错误作为字符串回传模型，模型可自我修正（坏 JSON 参数同样回传错误重试）。
@@ -146,13 +140,9 @@ python -m pytest tests/ -v
 minicoder/          # 核心代码
 tools/              # 工具注册表 + 沙箱 + read_file / write_file / run_command
 workspace/          # agent 工作区（沙箱，gitignore，运行自动创建）
-tests/              # 44 项 pytest
+tests/              # pytest测试
 demo/               # 演示场景模板（带 bug 的 wordcount 程序 + 样例文本）
 memory-bank/        # 设计文档 / 技术栈 / 实施计划 / 进度 / 架构
 ```
 
-## 提交物
 
-- **Git 仓库**：本仓库（公开，完整提交历史）。
-- **README.txt**：≤1000 字，含仓库地址、运行方式、特色功能（提交时填写）。
-- **视频**：≤2 分钟 mp4，演示 agent 完成真实编程任务（建议用真实 API 跑 demo 场景）。
